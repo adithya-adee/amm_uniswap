@@ -1,5 +1,5 @@
 use anchor_lang::prelude::*;
-use anchor_spl::token::{self, Mint, Token, TokenAccount};
+use anchor_spl::token_interface::{self, Mint, TokenAccount, TokenInterface};
 
 declare_id!("7TykxzTrTubF6VV1or85oJLTjexauiW3nQHhsXXMFtRT");
 
@@ -70,29 +70,33 @@ pub mod simple_amm {
         require!(lp_tokens >= min_lp_tokens, AmmError::SlippageExceeded);
 
         // Transfer token A from user to vault
-        token::transfer(
+        token_interface::transfer_checked(
             CpiContext::new(
                 ctx.accounts.token_program.to_account_info(),
-                token::Transfer {
+                token_interface::TransferChecked {
                     from: ctx.accounts.user_token_a.to_account_info(),
                     to: ctx.accounts.token_a_vault.to_account_info(),
                     authority: ctx.accounts.user.to_account_info(),
+                    mint: ctx.accounts.token_a_mint.to_account_info(),
                 },
             ),
             amount_a,
+            ctx.accounts.token_a_mint.decimals,
         )?;
 
         // Transfer token B from user to vault
-        token::transfer(
+        token_interface::transfer_checked(
             CpiContext::new(
                 ctx.accounts.token_program.to_account_info(),
-                token::Transfer {
+                token_interface::TransferChecked {
                     from: ctx.accounts.user_token_b.to_account_info(),
                     to: ctx.accounts.token_b_vault.to_account_info(),
                     authority: ctx.accounts.user.to_account_info(),
+                    mint: ctx.accounts.token_b_mint.to_account_info(),
                 },
             ),
             amount_b,
+            ctx.accounts.token_b_mint.decimals,
         )?;
 
         // Mint LP tokens to user
@@ -104,10 +108,10 @@ pub mod simple_amm {
         ];
         let signer = &[&seeds[..]];
 
-        token::mint_to(
+        token_interface::mint_to(
             CpiContext::new_with_signer(
                 ctx.accounts.token_program.to_account_info(),
-                token::MintTo {
+                token_interface::MintTo {
                     mint: ctx.accounts.lp_mint.to_account_info(),
                     to: ctx.accounts.user_lp_token.to_account_info(),
                     authority: ctx.accounts.pool.to_account_info(),
@@ -153,10 +157,10 @@ pub mod simple_amm {
         );
 
         // Burn LP tokens
-        token::burn(
+        token_interface::burn(
             CpiContext::new(
                 ctx.accounts.token_program.to_account_info(),
-                token::Burn {
+                token_interface::Burn {
                     mint: ctx.accounts.lp_mint.to_account_info(),
                     from: ctx.accounts.user_lp_token.to_account_info(),
                     authority: ctx.accounts.user.to_account_info(),
@@ -174,31 +178,35 @@ pub mod simple_amm {
         let signer = &[&seeds[..]];
 
         // Transfer token A back to user
-        token::transfer(
+        token_interface::transfer_checked(
             CpiContext::new_with_signer(
                 ctx.accounts.token_program.to_account_info(),
-                token::Transfer {
+                token_interface::TransferChecked {
                     from: ctx.accounts.token_a_vault.to_account_info(),
                     to: ctx.accounts.user_token_a.to_account_info(),
                     authority: ctx.accounts.pool.to_account_info(),
+                    mint: ctx.accounts.token_a_mint.to_account_info(),
                 },
                 signer,
             ),
             amount_a,
+            ctx.accounts.token_a_mint.decimals,
         )?;
 
         // Transfer token B back to user
-        token::transfer(
+        token_interface::transfer_checked(
             CpiContext::new_with_signer(
                 ctx.accounts.token_program.to_account_info(),
-                token::Transfer {
+                token_interface::TransferChecked {
                     from: ctx.accounts.token_b_vault.to_account_info(),
                     to: ctx.accounts.user_token_b.to_account_info(),
                     authority: ctx.accounts.pool.to_account_info(),
+                    mint: ctx.accounts.token_b_mint.to_account_info(),
                 },
                 signer,
             ),
             amount_b,
+            ctx.accounts.token_b_mint.decimals,
         )?;
 
         Ok(())
@@ -252,57 +260,65 @@ pub mod simple_amm {
 
         if a_to_b {
             // Transfer token A from user to vault
-            token::transfer(
+            token_interface::transfer_checked(
                 CpiContext::new(
                     ctx.accounts.token_program.to_account_info(),
-                    token::Transfer{
+                    token_interface::TransferChecked{
                         from: ctx.accounts.user_token_a.to_account_info(),
                         to: ctx.accounts.token_a_vault.to_account_info(),
                         authority: ctx.accounts.user.to_account_info(),
+                        mint: ctx.accounts.token_a_mint.to_account_info(),
                     },
                 ),
                 amount_in,
+                ctx.accounts.token_a_mint.decimals,
             )?;
 
             // Transfer token B from vault to user
-            token::transfer(
+            token_interface::transfer_checked(
                 CpiContext::new_with_signer(
                     ctx.accounts.token_program.to_account_info(),
-                    token::Transfer {
+                    token_interface::TransferChecked {
                         from: ctx.accounts.token_b_vault.to_account_info(),
                         to: ctx.accounts.user_token_b.to_account_info(),
                         authority: ctx.accounts.pool.to_account_info(),
+                        mint: ctx.accounts.token_b_mint.to_account_info(),
                     },
                     signer,
                 ),
                 amount_out,
+                ctx.accounts.token_b_mint.decimals,
             )?;
         } else {
             // Transfer token B from user to vault
-            token::transfer(
+            token_interface::transfer_checked(
                 CpiContext::new(
                     ctx.accounts.token_program.to_account_info(),
-                    token::Transfer {
+                    token_interface::TransferChecked {
                         from: ctx.accounts.user_token_b.to_account_info(),
                         to: ctx.accounts.token_b_vault.to_account_info(),
                         authority: ctx.accounts.user.to_account_info(),
+                        mint: ctx.accounts.token_b_mint.to_account_info(),
                     },
                 ),
                 amount_in,
+                ctx.accounts.token_b_mint.decimals,
             )?;
 
             // Transfer token A from vault to user
-            token::transfer(
+            token_interface::transfer_checked(
                 CpiContext::new_with_signer(
                     ctx.accounts.token_program.to_account_info(),
-                    token::Transfer{
+                    token_interface::TransferChecked{
                         from: ctx.accounts.token_a_vault.to_account_info(),
                         to: ctx.accounts.user_token_a.to_account_info(),
                         authority: ctx.accounts.pool.to_account_info(),
+                        mint: ctx.accounts.token_a_mint.to_account_info(),
                     },
                     signer,
                 ),
                 amount_out,
+                ctx.accounts.token_a_mint.decimals,
             )?;
         }
 
@@ -320,11 +336,11 @@ pub struct InitializePool<'info> {
         seeds = [b"pool", token_a_mint.key().as_ref(), token_b_mint.key().as_ref()],
         bump
     )]
-    pub pool: Account<'info, Pool>,
+    pub pool: Box<Account<'info, Pool>>,
 
-    pub token_a_mint: Account<'info, Mint>,
+    pub token_a_mint: Box<InterfaceAccount<'info, Mint>>,
     
-    pub token_b_mint: Account<'info, Mint>,
+    pub token_b_mint: Box<InterfaceAccount<'info, Mint>>,
 
     #[account(
         init,
@@ -332,7 +348,7 @@ pub struct InitializePool<'info> {
         token::mint = token_a_mint,
         token::authority = pool,
     )]
-    pub token_a_vault: Account<'info, TokenAccount>,
+    pub token_a_vault: Box<InterfaceAccount<'info, TokenAccount>>,
 
     #[account(
         init,
@@ -340,7 +356,7 @@ pub struct InitializePool<'info> {
         token::mint = token_b_mint,
         token::authority = pool,
     )]
-    pub token_b_vault: Account<'info, TokenAccount>,
+    pub token_b_vault: Box<InterfaceAccount<'info, TokenAccount>>,
 
     #[account(
         init,
@@ -348,12 +364,12 @@ pub struct InitializePool<'info> {
         mint::decimals = 6,
         mint::authority = pool,
     )]
-    pub lp_mint: Account<'info, Mint>,
+    pub lp_mint: Box<InterfaceAccount<'info, Mint>>,
 
     #[account(mut)]
     pub payer: Signer<'info>,
 
-    pub token_program: Program<'info, Token>,
+    pub token_program: Interface<'info, TokenInterface>,
     pub system_program: Program<'info, System>,
 }
 
@@ -364,28 +380,34 @@ pub struct AddLiquidity<'info> {
         seeds = [b"pool", pool.token_a_mint.as_ref(), pool.token_b_mint.as_ref()],
         bump = pool.bump
     )]
-    pub pool: Account<'info, Pool>,
+    pub pool: Box<Account<'info, Pool>>,
+
+    #[account(mut, address = pool.token_a_mint)]
+    pub token_a_mint: Box<InterfaceAccount<'info, Mint>>,
+
+    #[account(mut, address = pool.token_b_mint)]
+    pub token_b_mint: Box<InterfaceAccount<'info, Mint>>,
 
     #[account(mut, address = pool.token_a_vault)]
-    pub token_a_vault: Account<'info, TokenAccount>,
+    pub token_a_vault: Box<InterfaceAccount<'info, TokenAccount>>,
 
     #[account(mut, address = pool.token_b_vault)]
-    pub token_b_vault: Account<'info, TokenAccount>,
+    pub token_b_vault: Box<InterfaceAccount<'info, TokenAccount>>,
 
     #[account(mut, address = pool.lp_mint)]
-    pub lp_mint: Account<'info, Mint>,
+    pub lp_mint: Box<InterfaceAccount<'info, Mint>>,
 
     #[account(mut)]
-    pub user_token_a: Account<'info, TokenAccount>,
+    pub user_token_a: Box<InterfaceAccount<'info, TokenAccount>>,
 
     #[account(mut)]
-    pub user_token_b: Account<'info, TokenAccount>,
+    pub user_token_b: Box<InterfaceAccount<'info, TokenAccount>>,
 
     #[account(mut)]
-    pub user_lp_token: Account<'info, TokenAccount>,
+    pub user_lp_token: Box<InterfaceAccount<'info, TokenAccount>>,
 
     pub user: Signer<'info>,
-    pub token_program: Program<'info, Token>,
+    pub token_program: Interface<'info, TokenInterface>,
 }
 
 #[derive(Accounts)]
@@ -395,28 +417,34 @@ pub struct RemoveLiquidity<'info> {
         seeds = [b"pool", pool.token_a_mint.as_ref(), pool.token_b_mint.as_ref()],
         bump = pool.bump
     )]
-    pub pool: Account<'info, Pool>,
+    pub pool: Box<Account<'info, Pool>>,
+
+    #[account(mut, address = pool.token_a_mint)]
+    pub token_a_mint: Box<InterfaceAccount<'info, Mint>>,
+
+    #[account(mut, address = pool.token_b_mint)]
+    pub token_b_mint: Box<InterfaceAccount<'info, Mint>>,
 
     #[account(mut, address = pool.token_a_vault)]
-    pub token_a_vault: Account<'info, TokenAccount>,
+    pub token_a_vault: Box<InterfaceAccount<'info, TokenAccount>>,
 
     #[account(mut, address = pool.token_b_vault)]
-    pub token_b_vault: Account<'info, TokenAccount>,
+    pub token_b_vault: Box<InterfaceAccount<'info, TokenAccount>>,
 
     #[account(mut, address = pool.lp_mint)]
-    pub lp_mint: Account<'info, Mint>,
+    pub lp_mint: Box<InterfaceAccount<'info, Mint>>,
 
     #[account(mut)]
-    pub user_token_a: Account<'info, TokenAccount>,
+    pub user_token_a: Box<InterfaceAccount<'info, TokenAccount>>,
 
     #[account(mut)]
-    pub user_token_b: Account<'info, TokenAccount>,
+    pub user_token_b: Box<InterfaceAccount<'info, TokenAccount>>,
 
     #[account(mut)]
-    pub user_lp_token: Account<'info, TokenAccount>,
+    pub user_lp_token: Box<InterfaceAccount<'info, TokenAccount>>,
 
     pub user: Signer<'info>,
-    pub token_program: Program<'info, Token>,
+    pub token_program: Interface<'info, TokenInterface>,
 }
 
 #[derive(Accounts)]
@@ -426,22 +454,28 @@ pub struct Swap<'info> {
         seeds = [b"pool", pool.token_a_mint.as_ref(), pool.token_b_mint.as_ref()],
         bump = pool.bump
     )]
-    pub pool: Account<'info, Pool>,
+    pub pool: Box<Account<'info, Pool>>,
+
+    #[account(mut, address = pool.token_a_mint)]
+    pub token_a_mint: Box<InterfaceAccount<'info, Mint>>,
+
+    #[account(mut, address = pool.token_b_mint)]
+    pub token_b_mint: Box<InterfaceAccount<'info, Mint>>,
 
     #[account(mut, address = pool.token_a_vault)]
-    pub token_a_vault: Account<'info, TokenAccount>,
+    pub token_a_vault: Box<InterfaceAccount<'info, TokenAccount>>,
 
     #[account(mut, address = pool.token_b_vault)]
-    pub token_b_vault: Account<'info, TokenAccount>,
+    pub token_b_vault: Box<InterfaceAccount<'info, TokenAccount>>,
 
     #[account(mut)]
-    pub user_token_a: Account<'info, TokenAccount>,
+    pub user_token_a: Box<InterfaceAccount<'info, TokenAccount>>,
 
     #[account(mut)]
-    pub user_token_b: Account<'info, TokenAccount>,
+    pub user_token_b: Box<InterfaceAccount<'info, TokenAccount>>,
 
     pub user: Signer<'info>,
-    pub token_program: Program<'info, Token>,
+    pub token_program: Interface<'info, TokenInterface>,
 }
 
 #[account]
