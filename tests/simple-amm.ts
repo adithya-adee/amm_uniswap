@@ -6,6 +6,7 @@ import {
   createMint,
   getAccount,
   mintTo,
+  createAssociatedTokenAccount,
   TOKEN_PROGRAM_ID,
 } from "@solana/spl-token";
 import { assert } from "chai";
@@ -97,7 +98,6 @@ describe("simple-amm", () => {
         [Buffer.from("pool"), tokenAMint.toBuffer(), tokenBMint.toBuffer()],
         program.programId
       );
-      anchor;
 
       // Generate keypairs for vaults and LP mint
       const tokenAVaultKeypair = anchor.web3.Keypair.generate();
@@ -174,7 +174,8 @@ describe("simple-amm", () => {
 
   describe("Add Liquidity", () => {
     before(async () => {
-      userLpToken = await createAccount(
+      // Use associated token account for LP tokens 
+      userLpToken = await createAssociatedTokenAccount(
         connection,
         payer.payer,
         lpMint,
@@ -388,7 +389,7 @@ describe("simple-amm", () => {
       }
     });
   });
-  
+
   describe("Remove Liquidity", () => {
     it("Removes partial liquidity", async () => {
       const userLpBalance = await getAccount(connection, userLpToken);
@@ -420,8 +421,10 @@ describe("simple-amm", () => {
       const userBBalanceAfter = await getAccount(connection, userTokenB);
       const userLpBalanceAfter = await getAccount(connection, userLpToken);
 
-      const tokenAReceived = userABalanceAfter.amount - userABalanceBefore.amount;
-      const tokenBReceived = userBBalanceAfter.amount - userBBalanceBefore.amount;
+      const tokenAReceived =
+        userABalanceAfter.amount - userABalanceBefore.amount;
+      const tokenBReceived =
+        userBBalanceAfter.amount - userBBalanceBefore.amount;
       const lpTokensBurned = userLpBalance.amount - userLpBalanceAfter.amount;
 
       assert.equal(lpTokensBurned.toString(), lpAmountToRemove.toString());
@@ -491,7 +494,7 @@ describe("simple-amm", () => {
           .removeLiquidity(
             new anchor.BN(userLpBalance.amount.toString()),
             new anchor.BN(1_000_000_000_000), // Unrealistically high
-            new anchor.BN(1_000_000_000_000)  // Unrealistically high
+            new anchor.BN(1_000_000_000_000) // Unrealistically high
           )
           .accounts({
             pool: poolPda,
@@ -507,7 +510,7 @@ describe("simple-amm", () => {
             tokenProgram: TOKEN_PROGRAM_ID,
           } as any)
           .rpc();
-        
+
         assert.fail("Should have failed with slippage exceeded");
       } catch (error) {
         assert.include(error.message, "SlippageExceeded");
@@ -532,7 +535,7 @@ describe("simple-amm", () => {
             tokenProgram: TOKEN_PROGRAM_ID,
           } as any)
           .rpc();
-        
+
         assert.fail("Should have failed with invalid amount");
       } catch (error) {
         assert.include(error.message, "InvalidAmount");
@@ -557,10 +560,51 @@ describe("simple-amm", () => {
             tokenProgram: TOKEN_PROGRAM_ID,
           } as any)
           .rpc();
-        
+
         assert.fail("Should have failed with invalid amount");
       } catch (error) {
         assert.include(error.message, "InvalidAmount");
+      }
+    });
+
+    it("Fails to initialize Pool with same mint", async () => {
+      const [poolPda] = anchor.web3.PublicKey.findProgramAddressSync(
+        [Buffer.from("pool"), tokenAMint.toBuffer(), tokenAMint.toBuffer()],
+        program.programId
+      );
+
+      // Generate keypairs for vaults and LP mint
+      const tokenAVaultKeypair = anchor.web3.Keypair.generate();
+      const tokenBVaultKeypair = anchor.web3.Keypair.generate();
+      const lpMintKeypair = anchor.web3.Keypair.generate();
+
+      tokenAVault = tokenAVaultKeypair.publicKey;
+      tokenBVault = tokenBVaultKeypair.publicKey;
+      lpMint = lpMintKeypair.publicKey;
+
+      const feeNumerator = new anchor.BN(3);
+      const feeDenominator = new anchor.BN(1000); // 0.3% fee
+
+      try {
+        await program.methods
+          .initializePool(feeNumerator, feeDenominator)
+          .accounts({
+            pool: poolPda,
+            tokenAMint: tokenAMint,
+            tokenBMint: tokenAMint,
+            tokenAVault: tokenAVault,
+            tokenBVault: tokenBVault,
+            lpMint: lpMint,
+            payer: payer.publicKey,
+            tokenProgram: TOKEN_PROGRAM_ID,
+            systemProgram: anchor.web3.SystemProgram.programId,
+          } as any)
+          .signers([tokenAVaultKeypair, tokenBVaultKeypair, lpMintKeypair])
+          .rpc();
+
+        assert.fail("Failed to check identical mints");
+      } catch (error) {
+        assert.include(error.message, "IdenticalMints");
       }
     });
   });
